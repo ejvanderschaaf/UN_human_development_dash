@@ -1,0 +1,580 @@
+---
+title: "UN Human Development Dashboard"
+author: "Elizabeth Van Der Schaaf"
+date: "2025-03-02"
+output: html_document
+---
+### Background
+
+I found this dataset on kaggle. It comes from the UN Human Development Report and contains information about education, population size, income, and other characteristics of the nations of the world. One aspect of this data set that intrigued me was that it contained information concerning differences in gender across various metrics for individual countries. I wanted to investigate gender-based differences in education and how this might play into income. I was also curious about the more general relationship between income and education.
+
+As it would be overwhelming to examine the data for all countries in a single dashboard, I decided to focus on the top ten most populous countries. I figured that this would give a good representation of the world's population.
+
+My target audience are those concerned with the economic well-being of the world's population, especially those with an interest in gender equality. These may be people in positions of power or those crafting public policy. They may also be curious citizens. Perhaps these people have some knowledge of affairs in their own country but not how their nation compares with the rest of the world. They may be interested in general trends or historical insights.
+
+The big idea I attempted to illustrate is that there is a general positive relationship between education and income and also that many women receive less years of schooling than men.
+
+For the *Education and Income* dashboard I created a scatterplot showing average years of education and gross income per capita for the ten most populous countries. This plot can be filtered by year via a slider (or animated). There are a couple of annotations included (years 1990 and 1997) to illustrate key findings. More information is available upon hovering over the points. Below the scatterplot is a combo chart with the same metrics, but plotted over time along the x-axis and able to be filtered by country. This gives the user an opportunity to investigate the data via a different approach. A link to the data source is included at the bottom.
+
+The *Gender Differences* dashboard contains a grouped bar chart comparing average years of education for males vs. females by country. Below this is a scatterplot of these differences in education between the two genders along the x-axis and gross income per capita along the y-axis. Both plots can be filtered by year using the same slider. There are a few annotations included on the scatterplot (years 1990, 1992, and 2005) highlighting key points.
+
+### Reference
+
+*Human Development Index Dataset [1990-2022].* (2024, December 31). Kaggle. https://www.kaggle.com/datasets/lucasyukioimafuko/human-development-index-hdr-dataset-1990-2022
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(plotly)
+library(shiny)
+library(shinyWidgets)
+library(shinyjs)
+
+# read in data
+df <- read_csv("hdr_data.csv")
+
+# get 10 most populous countries in 2022
+df_filtered <- df |> 
+  filter(year == 2022) |>
+  filter(!str_starts(iso3, "ZZ")) |> 
+  arrange(desc(pop_millions)) |> 
+  slice_head(n = 10)
+
+top_10 <- df_filtered |> 
+  pull(country)
+print(top_10)
+```
+```{r}
+color_map <- c("China" = "#d44811",
+               "India" = "#749e11",
+               "United States" = "#130970",
+               "Indonesia" = "#aaa2f2",
+               "Pakistan" = "#b5872b",
+               "Nigeria" = "#a39f96",
+               "Brazil" = "#d1cb79",
+               "Bangladesh" = "lightsteelblue",
+               "Russian Federation" = "#799fd1",
+               "Mexico" = "#26610b")
+```
+```{r}
+# Define UI for first dash
+ui_1 <- fluidPage(
+  
+  tags$head(
+  tags$style(HTML("
+      .container-fluid {
+        width: 1200px !important;
+        height: 800px !important;
+      }
+      .sidebar-panel {
+        height: 100% !important;
+        width: 200px !important;
+      }
+      .main-panel {
+        height: 100% !important;
+        width: 100% !important;
+      }
+      .slider-input {
+        width: 100% !important;
+      }
+      .slider-animate-button {
+        font-size: 20px !important;
+        padding: 6px 12px !important;
+    }
+      .slider-animate-container {
+        margin-top: 15px !important;
+      }
+      .footer-link {
+        position: fixed;
+        bottom: 10px;
+        left: 200px;
+        transform: translateX(-50%);
+        font-size: 14px;
+        color: #2c3e50;
+        text-decoration: none;
+      }
+      .footer-link:hover {
+        color: #2980b9;
+      }
+    "))
+),
+
+  chooseSliderSkin("Modern", color = '#0461b3'),
+  sidebarLayout(
+    sidebarPanel(
+    titlePanel(HTML("Most Populous Countries:<br>Education and Income")), 
+    helpText(HTML("<br>Drag the slider to a specific year or click the play button to animate.")),
+      sliderInput("year_slider1",
+                  label = "",
+                  min = min(df$year),
+                  max = max(df$year),
+                  value = min(df$year),
+                  step = 1, animate = TRUE, sep = ""),
+	selectInput("country_selector", 
+                  label = "Select Country", 
+                  choices = top_10, 
+                  selected = top_10[1]),
+	useShinyjs(),
+	actionButton("go_to_ui_2","Go to Gender Differences Dashboard"),
+	helpText(HTML("<br><i>Note: Education information concerning Nigeria is unavailable before 2003.</i>"))
+    ),
+    
+    mainPanel(
+      plotlyOutput("scatterplot"),
+      plotlyOutput("combo_chart")
+    )
+  ),
+  tags$a(href = "https://www.kaggle.com/datasets/lucasyukioimafuko/human-development-index-hdr-dataset-1990-2022", 
+         target = "_blank", 
+         class = "footer-link",
+         "Click here for data source: Human Development Index Dataset")
+)
+# Define UI for second dash
+ui_2 <- fluidPage(
+  
+  tags$head(
+  tags$style(HTML("
+    /* Set the fixed width and height of the entire dashboard */
+      .container-fluid {
+        width: 1200px !important;
+        height: 800px !important;
+      }
+      /* Set the fixed size for the sidebar */
+      .sidebar-panel {
+        height: 100% !important;
+        width: 200px !important;
+      }
+      /* Set the fixed size for the plot area */
+      .main-panel {
+        height: 100% !important;
+        width: 100% !important;
+      }
+      /* Optional: Fix size of sliderInput */
+      .slider-input {
+        width: 100% !important;
+      }
+    .slider-animate-button {
+      font-size: 20px !important;
+      padding: 6px 12px !important;
+    }
+      .slider-animate-container {
+        margin-top: 15px !important;
+      }
+    "))
+),
+
+  chooseSliderSkin("Modern", color = '#0461b3'),
+  sidebarLayout(
+    sidebarPanel(
+    titlePanel(HTML("Most Populous Countries:<br>Gender Differences In Education")), 
+    helpText(HTML("<br>Drag the slider to a specific year or click the play button to animate.")),
+      sliderInput("year_slider",
+                  label = "",
+                  min = min(df$year),
+                  max = max(df$year),
+                  value = min(df$year),
+                  step = 1, animate = TRUE, sep = ""),
+    useShinyjs(),
+    actionButton("go_to_ui_1","Go to Education and Income Dashboard")
+    ),
+    
+    mainPanel(
+      plotlyOutput("grouped_bar_chart"),
+      plotlyOutput("scatter_plot")
+    )
+  )
+)
+# Define server logic
+server <- function(input, output) {
+  # Initially show ui_1
+  shinyjs::show("ui_1")
+  shinyjs::hide("ui_2")
+  
+  observeEvent(input$go_to_ui_2,{
+    shinyjs::hide("ui_1")
+    shinyjs::show("ui_2")
+  })
+  observeEvent(input$go_to_ui_1,{
+    shinyjs::hide("ui_2")
+    shinyjs::show("ui_1")
+  })
+  
+  # Reactive expression to filter based on selected year
+  filtered_data_y <- reactive({
+    df |>
+      filter(year == input$year_slider1, country %in% top_10)
+  })
+  
+  # Render scatterplot
+  output$scatterplot <- renderPlotly({
+    data <- filtered_data_y()
+    data$color <- color_map[data$country]
+    
+    is_1990_year <- 1990 == input$year_slider1
+    gen_1990_ann <- if(is_1990_year){
+      list(
+          xref = 'x',
+          yref = 'y',
+          x = 6,
+          y = 35000,
+          xanchor = 'left',
+          yanchor = 'middle',
+          text = 'A general positive trend is observable<br>between education and income',
+          font = list(family = 'Arial', size = 12, color = 'rgba(67,67,67,1)'),
+          showarrow = FALSE,
+          align = 'left'
+       )
+      } else {
+        NULL
+      }
+    
+    is_1997_year <- 1997 == input$year_slider1
+    Rus_1997_ann <- if(is_1997_year){
+      list(
+          xref = 'x',
+          yref = 'y',
+          x = 9,
+          y = 20000,
+          xanchor = 'left',
+          yanchor = 'middle',
+          text = 'Russia deviates from this trend<br>throughout the 1990s',
+          font = list(family = 'Arial', size = 12, color = 'rgba(67,67,67,1)'),
+          showarrow = FALSE,
+          align = 'left'
+       )
+      } else {
+        NULL
+      }
+    
+   plot_ly(data, x = ~mean_yr_school, y = ~gross_inc_percap, 
+            type = 'scatter', mode = 'markers',
+            text = data$country,  # Specify the country for hover
+            customdata = data$pop_millions,
+           hovertemplate = 
+             paste(
+              "<b>Country:</b> %{text}<br>",
+              "<b>Population:</b> %{customdata:.2f} million<br>",
+              "<b>Average Education:</b> %{x:.2f} years<br>",  
+              "<b>Gross Income per Capita:</b> $%{y:,.0f}",
+              "<extra></extra>"
+             ),
+            marker = list(size = 10, 
+                          color = data$color,
+                          showscale = FALSE)) |> 
+      layout(
+        title = list(
+          text = paste("Education and Income of Most Populous Countries,", input$year_slider1),
+          font = list(size = 22),
+          x = 0.005, xanchor = 'left',
+          y = 0.98
+          ),
+        margin = list(t = 50, l = 100),
+        xaxis = list(
+          title = "",
+          titlefont = list(size = 16),
+          showgrid = FALSE,
+          ticktext = NULL,
+          zeroline = FALSE,
+          showline = TRUE,
+          linecolor = 'grey',
+          xanchor = 'right', x=1,
+          range = c(0, 14)
+        ),
+        yaxis = list(
+          title = "",
+          titlefont = list(size = 16),
+          tickfont = list(size = 12),
+          tickformat = "$,",
+          showgrid = FALSE,
+          showline = TRUE,
+          zeroline = FALSE,
+          linecolor = 'grey',
+          range = c(0, 70000)
+        ),
+        annotations = list(
+          gen_1990_ann,
+          Rus_1997_ann,
+          list(
+             x = 1,
+             y = .08,
+             xref = 'paper',
+             yref = 'paper',
+             text = 'Average Years of Education',
+              showarrow = FALSE,
+              font = list(size = 16),
+             xanchor = 'right',
+             yanchor = 'top'
+        ),
+          list(
+             x = -0.085,  
+             y = 1.02,     
+             xref = 'paper',
+             yref = 'paper',
+             text = 'Gross Income per Capita',
+             textangle = -90,
+             showarrow = FALSE,
+             font = list(size = 16),
+             xanchor = 'right',
+             yanchor = 'top'
+         )
+         ),
+        showlegend = FALSE,
+        plot_bgcolor = 'white',
+        paper_bgcolor = 'white'
+      )
+  })
+   # Reactive expression to filter data by selected country
+  filtered_data_c <- reactive({
+    df |>
+      filter(country == input$country_selector)
+  })
+  
+  # Render combo chart
+  output$combo_chart <- renderPlotly({
+    data <- filtered_data_c()
+    
+    # Create the plotly combo chart
+    plot_ly(data, x = ~year) |>
+      add_bars(
+        y = ~mean_yr_school, 
+        name = 'Average Years of Education', 
+        marker = list(color = '#6eafc4', opacity = 0.5),
+        yaxis = "y2",
+        hovertemplate = 
+        paste(
+          "<b> %{x}:</b>",
+          "%{y:.2f} years",
+          "<extra></extra>"
+        )
+      ) |>
+      add_lines(
+        y = ~gross_inc_percap, 
+        name = 'Gross Income per Capita', 
+        line = list(color = '#111563'),
+        yaxis = "y1",
+        hovertemplate = 
+        paste(
+          "<b> %{x}:</b>",
+          "$%{y:,.0f}", 
+          "<extra></extra>"
+        )
+      ) |>
+            layout(
+        title = list(
+          text = paste("Education and Income for", input$country_selector),
+          font = list(size = 22),
+          x = 0.005, xanchor = 'left',
+          y = 0.98,
+          pad = list(b = 20)
+          ),
+        margin = list(t = 50, l = 100, r = 20),
+        xaxis = list(title = ""),
+        yaxis = list(
+          title = "",
+          tickformat = "$,",
+          side = "left",
+          range = c(0, 70000),
+          showgrid = FALSE
+        ),
+        yaxis2 = list(
+          title = "",
+          side = "right",
+          overlaying = "y", 
+          tickformat = ".0f",
+          range = c(0, 15),
+          showgrid = FALSE
+        ),
+        showlegend = TRUE,
+        legend = list(
+    y = 1.1, 
+    yanchor = "top",
+    x = 1, 
+    xanchor = "right"
+  )
+      )
+  })
+    # Reactive expression to filter and sort data by selected year and top 10 countries
+  filtered_data <- reactive({
+    df |>
+      filter(year == input$year_slider, country %in% top_10) |>
+      arrange(mean_yr_school_m)  # Sort by mean_yr_school_m
+  })
+  
+  # Render grouped bar chart
+  output$grouped_bar_chart <- renderPlotly({
+    data <- filtered_data()
+    
+    # Reorder country factor based on sorted mean_yr_school_m
+    data$country <- factor(data$country, levels = data$country[order(data$mean_yr_school_m, decreasing = FALSE)])
+    
+    # Create grouped bar chart
+    plot_ly(data, 
+            x = ~mean_yr_school_f, 
+            y = ~country, 
+            type = 'bar', 
+            name = 'Female', 
+            orientation = 'h',
+            marker = list(color = '#a4adb0')) |>
+      add_trace(
+        x = ~mean_yr_school_m, 
+        y = ~country, 
+        type = 'bar', 
+        name = 'Male', 
+        orientation = 'h',
+        marker = list(color = '#67767a')
+      ) |>
+      layout(
+        title = list(
+          text = paste("Average Years of Education by Gender,", input$year_slider),
+          font = list(size = 22),
+          x = 0.005, xanchor = 'left',
+          y = 0.98
+          ),
+        margin = list(t = 50, l = 100),
+        xaxis = list(title = "",
+                     showgrid = FALSE,
+                     side = "top",
+                     showline = TRUE,
+                     linecolor = 'grey',
+                     range = c(0, 14)),
+        yaxis = list(title = "",
+                     showgrid = FALSE,
+                     showline = FALSE,
+                     zeroline = FALSE),
+        barmode = 'group',
+        showlegend = TRUE
+      )
+  })
+  
+  # Render the scatter plot
+  output$scatter_plot <- renderPlotly({
+    data <- filtered_data()
+    
+    # Calculate the difference between mean_yr_school_m and mean_yr_school_f
+    data$education_diff <- data$mean_yr_school_m - data$mean_yr_school_f
+    
+    data$color <- color_map[data$country]
+    
+    is_1990_year2 <- 1990 == input$year_slider
+    US_1990_ann <- if(is_1990_year2){
+      list(
+          xref = 'x',
+          yref = 'y',
+          x = -0.9,
+          y = 50000,
+          xanchor = 'left',
+          yanchor = 'middle',
+          text = 'Women received more<br>education than men<br>in the US and Brazil',
+          font = list(family = 'Arial', size = 12, color = 'rgba(67,67,67,1)'),
+          showarrow = FALSE,
+          align = 'left'
+       )
+      } else {
+        NULL
+      }
+    is_1992_year <- 1992 == input$year_slider
+    US_1992_ann <- if(is_1992_year){
+      list(
+          xref = 'x',
+          yref = 'y',
+          x = 0.3,
+          y = 42000,
+          xanchor = 'left',
+          yanchor = 'middle',
+          text = 'In 1992 this shifts back<br>in favor of males in the US',
+          font = list(family = 'Arial', size = 12, color = 'rgba(67,67,67,1)'),
+          showarrow = FALSE,
+          align = 'left'
+       )
+      } else {
+        NULL
+      }
+    is_2005_year <- 2005 == input$year_slider
+    Pak_2005_ann <- if(is_2005_year){
+      list(
+          xref = 'x',
+          yref = 'y',
+          x = 2.8,
+          y = 9000,
+          xanchor = 'left',
+          yanchor = 'middle',
+          text = 'A difference of over<br>3 years in Pakistan',
+          font = list(family = 'Arial', size = 12, color = 'rgba(67,67,67,1)'),
+          showarrow = FALSE,
+          align = 'left'
+       )
+      } else {
+        NULL
+      }
+    
+        # Create the scatter plot
+    plot_ly(data, 
+            x = ~education_diff, 
+            y = ~gross_inc_percap, 
+            type = 'scatter', 
+            mode = 'markers', 
+            text = data$country,  
+            customdata = data$education_diff,
+           hovertemplate = 
+             paste(
+              "<b>Country:</b> %{text}<br>",
+              "<b>Difference in education:</b> %{customdata:.2f} years<br>",
+              "<b>Gross Income per Capita:</b> $%{y:,.0f}",
+              "<extra></extra>"
+             ),
+            marker = list(size = 10, color = data$color, showscale = FALSE)) |>
+      layout(
+        title = list(
+          text = "Men receive more education than women in most countries",
+          font = list(size = 22),
+          x = 0.005, xanchor = 'left',
+          y = 0.98
+          ),
+        margin = list(t = 50, b = 50),
+        xaxis = list(title = "",
+                     range = c(-1, 3.5),
+                     showgrid = FALSE),
+        yaxis = list(title = "",
+                     tickformat = "$,",
+                     range = c(0, 70000),
+                     showgrid = FALSE,
+                     showline = FALSE),
+        showlegend = FALSE,
+        annotations = list(
+          US_1990_ann,
+          US_1992_ann,
+          Pak_2005_ann,
+          list(
+             x = 1,
+             y = -.15,
+             xref = 'paper',
+             yref = 'paper',
+             text = paste("Average Difference in Years of Schooling Between Males and Females in", input$year_slider),
+              showarrow = FALSE,
+              font = list(size = 16),
+             xanchor = 'right',
+             yanchor = 'bottom'
+        ),
+          list(
+             x = -0.085,  
+             y = 1.02,     
+             xref = 'paper',
+             yref = 'paper',
+             text = 'Gross Income per Capita',
+             textangle = -90,
+             showarrow = FALSE,
+             font = list(size = 16),
+             xanchor = 'right',
+             yanchor = 'top'
+         )
+         )
+      )
+  })
+}
+
+# Run the application
+shinyApp(ui = fluidPage(
+  div(id = "ui_1", ui_1),
+  div(id = "ui_2", ui_2),
+), server = server)
+```
