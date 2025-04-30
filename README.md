@@ -20,3 +20,6 @@ The *Gender Differences* dashboard contains a grouped bar chart comparing averag
 *Human Development Index Dataset [1990-2022].* (2024, December 31). Kaggle. https://www.kaggle.com/datasets/lucasyukioimafuko/human-development-index-hdr-dataset-1990-2022
 
 ![image](https://github.com/user-attachments/assets/eca68d45-8161-494d-9f58-d277158741c6)
+
+![image](https://github.com/user-attachments/assets/ffaad348-e6ad-4151-8fe7-e6749bc7e33d)
+
